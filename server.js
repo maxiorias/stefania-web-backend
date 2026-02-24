@@ -9,17 +9,24 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// ⭐ CORS más estable para producción
+// ---------------------------
+// CORS producción
+// ---------------------------
+
 app.use(
   cors({
     origin: "https://stefania-web-frontend.vercel.app",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
   })
 );
 
 app.use(express.json());
 
-// ⭐ Verificación de variables
+// ---------------------------
+// Variables de entorno check
+// ---------------------------
+
 if (!process.env.RESEND_API_KEY) {
   console.error("❌ Falta RESEND_API_KEY en variables de entorno");
 }
@@ -48,7 +55,10 @@ const limiter = rateLimit({
 // ---------------------------
 
 const sanitize = (text = "") =>
-  text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  text
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .trim();
 
 // ---------------------------
 // Endpoint contacto
@@ -56,14 +66,17 @@ const sanitize = (text = "") =>
 
 app.post("/enviar", limiter, async (req, res) => {
   try {
-    const { nombre, email, mensaje, website } = req.body;
+    const { nombre = "", email = "", mensaje = "", website } = req.body;
 
+    // Honeypot anti bot
     if (website) return res.status(400).send({ ok: false });
 
+    console.log("📩 Mensaje recibido:");
+    console.log("Nombre:", nombre);
+    console.log("Email:", email);
+
+    // Validaciones
     if (
-      !nombre ||
-      !email ||
-      !mensaje ||
       nombre.length < 2 ||
       mensaje.length < 10 ||
       mensaje.length > 500 ||
@@ -76,24 +89,27 @@ app.post("/enviar", limiter, async (req, res) => {
     const safeEmail = sanitize(email);
     const safeMensaje = sanitize(mensaje);
 
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: "Contacto Web <onboarding@resend.dev>",
       to: process.env.EMAIL_USER,
       reply_to: safeEmail,
-      subject: "📩 Mensaje desde la web",
+      subject: "📩 Nuevo mensaje desde la web",
       html: `
         <h2>Nuevo mensaje desde la web</h2>
         <p><strong>Nombre:</strong> ${safeNombre}</p>
         <p><strong>Email:</strong> ${safeEmail}</p>
-        <hr>
+        <hr/>
         <p>${safeMensaje}</p>
       `
     });
 
+    console.log("✅ Mail enviado:", result);
+
     res.send({ ok: true });
 
   } catch (error) {
-    console.log("Error envío:", error);
+    console.log("❌ Error envío:", error);
+
     res.status(500).send({
       ok: false,
       message: "Error al enviar el mensaje"
