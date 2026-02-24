@@ -15,7 +15,10 @@ app.set("trust proxy", 1);
 
 app.use(
   cors({
-    origin: "https://stefania-web-frontend.vercel.app",
+    origin: [
+      "https://stefania-alberti.vercel.app",
+      "http://localhost:3000"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   })
