@@ -1,11 +1,13 @@
 require("dotenv").config();
 
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const { Resend } = require("resend");
 
 const app = express();
+app.set("trust proxy", 1);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ---------------------------
 // Middlewares generales
@@ -14,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------------
-// Endpoint raíz (para probar backend)
+// Endpoint raíz
 // ---------------------------
 app.get("/", (req, res) => {
   res.send("Backend funcionando correctamente 🚀");
@@ -24,7 +26,7 @@ app.get("/", (req, res) => {
 // Rate limit SOLO para /enviar
 // ---------------------------
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: {
     ok: false,
@@ -33,11 +35,10 @@ const limiter = rateLimit({
 });
 
 // ---------------------------
-// Función simple para sanitizar
+// Sanitizar
 // ---------------------------
-const sanitize = (text) => {
-  return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-};
+const sanitize = (text) =>
+  text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // ---------------------------
 // Endpoint contacto
@@ -45,12 +46,8 @@ const sanitize = (text) => {
 app.post("/enviar", limiter, async (req, res) => {
   const { nombre, email, mensaje, website } = req.body;
 
-  // Honeypot anti-spam
-  if (website) {
-    return res.status(400).send({ ok: false });
-  }
+  if (website) return res.status(400).send({ ok: false });
 
-  // Validaciones
   if (
     !nombre ||
     !email ||
@@ -63,68 +60,35 @@ app.post("/enviar", limiter, async (req, res) => {
     return res.status(400).send({ ok: false });
   }
 
-  // Sanitizar inputs
   const safeNombre = sanitize(nombre);
   const safeEmail = sanitize(email);
   const safeMensaje = sanitize(mensaje);
 
-  console.log("Mensaje recibido:");
-  console.log("Nombre:", safeNombre);
-  console.log("Email:", safeEmail);
-  console.log("------------------------");
-
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      replyTo: safeEmail,
-      to: process.env.EMAIL_USER,
+    await resend.emails.send({
+      from: "Web Contacto <onboarding@resend.dev>",
+      to: process.env.EMAIL_USER, // tu mail donde querés recibir
+      reply_to: safeEmail,
       subject: "Mensaje desde la web",
       html: `
-        <div style="font-family: Arial; max-width:600px; margin:auto; border:1px solid #ddd; border-radius:8px; padding:20px;">
-          <h2 style="color:#8b5e3c;">Nuevo mensaje desde la web</h2>
-
-          <p><strong>Nombre:</strong> ${safeNombre}</p>
-          <p><strong>Email:</strong> ${safeEmail}</p>
-
-          <hr>
-
-          <p><strong>Mensaje:</strong></p>
-          <p style="white-space:pre-line;">${safeMensaje}</p>
-
-          <hr>
-
-          <p style="font-size:12px; color:#777;">
-            Mensaje enviado desde el formulario web.
-          </p>
-        </div>
+        <h2>Nuevo mensaje desde la web</h2>
+        <p><strong>Nombre:</strong> ${safeNombre}</p>
+        <p><strong>Email:</strong> ${safeEmail}</p>
+        <hr>
+        <p>${safeMensaje}</p>
       `
     });
-
-    console.log("Correo enviado correctamente");
-    console.log("========================");
 
     res.send({ ok: true });
 
   } catch (error) {
-    console.log("Error enviando correo:");
     console.log(error);
     res.status(500).send({ ok: false });
   }
 });
 
 // ---------------------------
-// Puerto dinámico para deploy
-// ---------------------------
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
