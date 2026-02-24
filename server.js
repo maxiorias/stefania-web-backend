@@ -1,8 +1,5 @@
-app.get("/", (req, res) => {
-  res.send("Backend funcionando correctamente 🚀");
-});
-
 require("dotenv").config();
+
 const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
@@ -17,11 +14,18 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------------
+// Endpoint raíz (para probar backend)
+// ---------------------------
+app.get("/", (req, res) => {
+  res.send("Backend funcionando correctamente 🚀");
+});
+
+// ---------------------------
 // Rate limit SOLO para /enviar
 // ---------------------------
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 20, // máximo 20 requests por IP
+  max: 20,
   message: {
     ok: false,
     message: "Demasiadas solicitudes. Intentá nuevamente más tarde."
@@ -46,7 +50,7 @@ app.post("/enviar", limiter, async (req, res) => {
     return res.status(400).send({ ok: false });
   }
 
-  // Validaciones 
+  // Validaciones
   if (
     !nombre ||
     !email ||
