@@ -7,37 +7,28 @@ const { Resend } = require("resend");
 
 const app = express();
 
-// ⭐ Render proxy config
 app.set("trust proxy", 1);
 
-// ⭐ Verificar API Key antes de iniciar
-if (!process.env.RESEND_API_KEY) {
-  console.error("❌ Falta RESEND_API_KEY en variables de entorno");
-}
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// ---------------------------
-// Middlewares
-// ---------------------------
-
+// ⭐ CORS más estable para producción
 app.use(
   cors({
-    origin: ["https://stefania-web-frontend.vercel.app"], // ❗ SIN la barra final
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: "https://stefania-web-frontend.vercel.app",
+    methods: ["GET", "POST"]
   })
 );
 
 app.use(express.json());
 
-// ---------------------------
-// Endpoint raíz
-// ---------------------------
+// ⭐ Verificación de variables
+if (!process.env.RESEND_API_KEY) {
+  console.error("❌ Falta RESEND_API_KEY en variables de entorno");
+}
 
-app.get("/", (req, res) => {
-  res.send("Backend funcionando correctamente 🚀");
-});
+if (!process.env.EMAIL_USER) {
+  console.error("❌ Falta EMAIL_USER en variables de entorno");
+}
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ---------------------------
 // Rate limit
@@ -53,7 +44,7 @@ const limiter = rateLimit({
 });
 
 // ---------------------------
-// Sanitizar input
+// Sanitizar
 // ---------------------------
 
 const sanitize = (text = "") =>
@@ -67,9 +58,7 @@ app.post("/enviar", limiter, async (req, res) => {
   try {
     const { nombre, email, mensaje, website } = req.body;
 
-    if (website) {
-      return res.status(400).send({ ok: false });
-    }
+    if (website) return res.status(400).send({ ok: false });
 
     if (
       !nombre ||
@@ -87,15 +76,11 @@ app.post("/enviar", limiter, async (req, res) => {
     const safeEmail = sanitize(email);
     const safeMensaje = sanitize(mensaje);
 
-    if (!process.env.EMAIL_USER) {
-      throw new Error("EMAIL_USER no configurado");
-    }
-
     await resend.emails.send({
-      from: "Web Contacto <onboarding@resend.dev>",
+      from: "Contacto Web <onboarding@resend.dev>",
       to: process.env.EMAIL_USER,
       reply_to: safeEmail,
-      subject: "Mensaje desde la web",
+      subject: "📩 Mensaje desde la web",
       html: `
         <h2>Nuevo mensaje desde la web</h2>
         <p><strong>Nombre:</strong> ${safeNombre}</p>
